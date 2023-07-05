@@ -16,6 +16,7 @@ usage:
 	@echo " - nucleo_f446re"
 	@echo " - opentitan"
 	@echo " - hifive1"
+	@echo " - qemu-rv32-virt"
 	@echo " - nrf52"
 	@echo " - imxrt1050"
 	@echo " - apollo3"
@@ -272,6 +273,15 @@ hifive1:
 	cp target/riscv32imac-unknown-none-elf/release/examples/$(EXAMPLE).tab \
 		target/riscv32imac-unknown-none-elf/release/examples/$(EXAMPLE).tbf \
 		target/tbf/hifive1
+
+.PHONY: qemu-rv32-virt
+qemu-rv32-virt:
+	LIBTOCK_PLATFORM=qemu-rv32-virt cargo run --example $(EXAMPLE) $(features) \
+		--target=riscv32imac-unknown-none-elf $(release)
+	mkdir -p target/tbf/qemu-rv32-virt
+	cp target/riscv32imac-unknown-none-elf/release/examples/$(EXAMPLE).tab \
+		target/riscv32imac-unknown-none-elf/release/examples/$(EXAMPLE).tbf \
+		target/tbf/qemu-rv32-virt
 
 .PHONY: nrf52
 nrf52:

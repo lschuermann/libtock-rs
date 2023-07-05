@@ -23,6 +23,9 @@ pub struct Hz(pub u32);
 pub trait Convert {
     /// Converts a time unit by rounding up.
     fn to_ticks(self, freq: Hz) -> Ticks;
+
+    /// Converts a time unit from ticks by rounding up.
+    fn from_ticks(ticks: Ticks, freq: Hz) -> Self;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -32,28 +35,38 @@ impl Convert for Ticks {
     fn to_ticks(self, _freq: Hz) -> Ticks {
         self
     }
+
+    fn from_ticks(ticks: Ticks, _freq: Hz) -> Self {
+	ticks
+    }
 }
 
 #[derive(Copy, Clone)]
 pub struct Milliseconds(pub u32);
+
+impl Milliseconds {
+    /// u32::div_ceil is still unstable.
+    fn div_ceil(a: u32, other: u32) -> u32 {
+        let d = a / other;
+        let m = a % other;
+        if m == 0 {
+            d
+        } else {
+            d + 1
+        }
+    }
+}
 
 impl Convert for Milliseconds {
     fn to_ticks(self, freq: Hz) -> Ticks {
         // Saturating multiplication will top out at about 1 hour at 1MHz.
         // It's large enough for an alarm, and much simpler than failing
         // or losing precision for short sleeps.
+        Ticks(Self::div_ceil(self.0.saturating_mul(freq.0), 1000))
+    }
 
-        /// u32::div_ceil is still unstable.
-        fn div_ceil(a: u32, other: u32) -> u32 {
-            let d = a / other;
-            let m = a % other;
-            if m == 0 {
-                d
-            } else {
-                d + 1
-            }
-        }
-        Ticks(div_ceil(self.0.saturating_mul(freq.0), 1000))
+    fn from_ticks(ticks: Ticks, freq: Hz) -> Self {
+	Milliseconds(Self::div_ceil(ticks.0.saturating_mul(1000), freq.0))
     }
 }
 
@@ -89,6 +102,16 @@ impl<S: Syscalls, C: platform::subscribe::Config> Alarm<S, C> {
                 }
             }
         })
+    }
+
+    pub fn current_instant<T: Convert>() -> Result<T, ErrorCode> {
+	let freq = Self::get_frequency()?;
+
+	let ticks = S::command(DRIVER_NUM, command::TIME, 0, 0)
+	    .to_result()
+	    .map(Ticks)?;
+
+	Ok(T::from_ticks(ticks, freq))
     }
 }
 
